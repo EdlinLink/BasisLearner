@@ -47,6 +47,10 @@ long F_row, F_col;
 long OF_row, OF_col;
 
 
+mat lambdaRange;
+mat Result_train;
+mat Result_test;
+
 
 clock_t start, finish;
 
@@ -58,8 +62,10 @@ void ProgramInit(){
 
 
 void LoadData(){
+	clock_t a = clock();
+	
 	FILE *fp;
-
+	
 	fp = fopen("X.txt", "r");
 	X.zeros(X_row, X_col);
 	for(long row=0; row<X_row; row++)
@@ -72,11 +78,15 @@ void LoadData(){
 	for(long row=0; row<Y_row; row++)
 		fscanf(fp, "%lf", &Y(row,0));
 	fclose(fp);
+	
+	clock_t b = clock();
+	cout <<"### LD TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 void SetParameter(){
+	clock_t a = clock();
 	widths.node.clear();
 	for(int layer=0; layer<Layer; layer++){
 		widths.node.push_back(Node);
@@ -86,11 +96,15 @@ void SetParameter(){
 	BuildMethodFirstLayer = "exact";
 	batchSize = 50;
 	tol = 1e-9;	
+	
+	clock_t b = clock();
+	cout <<"### SP TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 void PreProcessData(){
+	clock_t a = clock();
 	cout << "Building F for widths: [";
 	for(int i=0; i<widths.node.size(); i++){
 		cout<<widths.node.at(i)<<" ";
@@ -112,13 +126,16 @@ void PreProcessData(){
 	OF_row = trainend;
 	OF_col = widths.sum();
 	OF.zeros(OF_row, OF_col);
+	
+	clock_t b = clock();
+	cout <<"### PP TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 
 void CreateInputLayer(){
-	
+	clock_t a = clock();
 	mat W;
 	if(BuildMethodFirstLayer == "exact"){
 		
@@ -173,12 +190,15 @@ void CreateInputLayer(){
 			F(j,i) = F.at(j,i) / sq;
 		}
 	}
+	
+	clock_t b = clock();
+	cout <<"### IL TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 void CreateIntermediateLayer(){
-	
+	clock_t a = clock();
 	for(int t=2; t<=Layer; t++){
 		long beginThis = widths.sum(1,t-1) + 1;
 		long beginLast = widths.sum(1,t-2) + 1;
@@ -213,10 +233,6 @@ void CreateIntermediateLayer(){
 				V(i, j) = V.at(i, j) - of_2(i, j);
 			}
 		}
-		
-		
-		cout << "###1\n";
-		
 		
 		int r = beginThis;
 		while(r <= beginThis+widths.node.at(t-1)-1){
@@ -268,9 +284,6 @@ void CreateIntermediateLayer(){
 				}
 			}
 			
-			
-			cout << "###2\n";
-			
 			Posi *M = new Posi[scores.size()];
 			for(int j=0; j<widths.node.at(t-2); j++){//col
 				for(int i=0; i<widths.node.front(); i++){//row
@@ -294,8 +307,6 @@ void CreateIntermediateLayer(){
 			long ind = 0;
 			
 			double normOCl;
-			
-			cout << "###3\n";
 			
 			while(l<=numNewColumns){
 				mat f = F;
@@ -363,10 +374,6 @@ void CreateIntermediateLayer(){
 				
 			}
 			
-			
-			cout << "###4\n";
-			
-			
 			if(normOCl > tol)
 				l--;
 			
@@ -395,43 +402,22 @@ void CreateIntermediateLayer(){
 			
 		}
 	}
+	
+	clock_t b = clock();
+	cout <<"### ML TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
-void ProgramEnd(){
-	finish=clock();
-    cout<<"TIME = "<<(finish-start)/CLOCKS_PER_SEC<<endl;
-}
-
-
-
-
-int main(){
-
-	ProgramInit();
-	
-	LoadData();
-	SetParameter();
-	PreProcessData();		
-	
-	
-	CreateInputLayer();
-	cout << "Create ok\n";
-	CreateIntermediateLayer();
-	cout << "Intermediate ok\n";
-	
-	//Results = BuildOutputLayers(F,Y,trainend,widths,lambdaRange);
-	
-	mat lambdaRange;
+void CreateOutputLayer(){
+	clock_t a = clock();
 	lambdaRange.zeros(1,LambdaCount);
 	lambdaRange(0,0) = LambdaRange;
 	for(int i=1; i<LambdaCount; i++){
 		lambdaRange(0,i) = lambdaRange.at(0,i-1)*10;
 	}
-
-	mat Result_train;
-	mat Result_test;
+	
+	
 	Result_train.zeros(widths.node.size(),LambdaCount);
 	Result_test.zeros(widths.node.size(), LambdaCount);
 	
@@ -443,14 +429,14 @@ int main(){
 		cout<<LambdaRange*pow(10.0,i)<<" ";
 	cout<<"]"<<endl<<endl;
 	
-
+	
 	string lossType;
 	if(classLabels.size()>2)
 		lossType = "multiclass_hinge";
 	else
 		lossType = "hinge";
-
-
+	
+	
 	int szCounter = 0;
 	vector<int> cumsum_widths;
 	cumsum_widths.clear();
@@ -485,10 +471,7 @@ int main(){
 			}
 			else{
 				long minY = INF;
-				/*for(int i=0; i<Y_row; i++){
-					if(minY>Y.at(i,0))
-						minY = Y.at(i,0);
-				}*/
+				
 				set<int>::iterator it;
 				for(	it=classLabels.begin(); it!=classLabels.end(); it++){
 					if(minY>*it)
@@ -502,7 +485,6 @@ int main(){
 				mat subY = Y.submat(0, 0, trainend-1, 0);
 				
 				mat w = MC_SGD(subF, trainend, sz, subY, classLabels.size(), lambda);
-				//cout << "###"<<w<<endl;		//!!!!!!!!!!!!!
 				subF = F.submat(0, 0, F_row-1, sz-1);
 				mat temp = subF*w;
 				for(int a=0; a<F_row-1; a++){
@@ -517,13 +499,9 @@ int main(){
 					preds(a,0) = pre+1;
 				}
 				
-				//preds.print();
 				for(int a=0; a<F_row-1; a++){
 					preds(a,0) = preds.at(a,0)+minY-1;
 				}
-				
-				
-				
 			}
 			
 			long error = 0;
@@ -532,24 +510,29 @@ int main(){
 					error++;
 			}
 			Result_train(szCounter, lambdaCounter) = error/double(trainend);
-				
+			
 			error = 0;
 			for(int a=trainend; a<Y_row; a++){
 				if(preds(a,0)!=Y.at(a,0))
 					error++;
 			}
 			Result_test(szCounter, lambdaCounter) = error/double(Y_row-trainend);
-
+			
 			cout <<"Train Error: "<<Result_train(szCounter, lambdaCounter)<<", Test Error: "<<Result_test(szCounter, lambdaCounter)<<endl<<endl;
 			lambdaCounter++;
-
+			
 		}
 		
 		szCounter++;
 	}
-	
+	clock_t b = clock();
+	cout <<"### OL TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
+}
 
 
+
+void BestResult(){
+	clock_t a = clock();
 	double bestTestError = 1.00;
 	long best_i,best_j;
 	
@@ -563,18 +546,43 @@ int main(){
 			}
 		}
 	}
-			   
 	
-
 	Result_train.zeros(widths.node.size(),LambdaCount);
-
+	
 	cout << "Best Test Error Result: " <<bestTestError*100<<"%"<<endl;
 	cout << " - Architecture [";
 	for(int i=0; i<=best_i; i++){
 		cout << widths.node.at(i) <<" ";
 	}
 	cout<<"]\n - lambda "<<lambdaRange(0,best_j)<<"(no. "<<best_j+1<<" in lambdaRange)"<<endl;
+	
+	clock_t b = clock();
+	cout <<"### BR TIME = "<<b-a<<endl;
+}
 
+
+
+void ProgramEnd(){
+	finish=clock();
+    cout<<"TIME = "<<(finish-start)/CLOCKS_PER_SEC<<endl;
+}
+
+
+
+
+int main(){
+
+	ProgramInit();
+	
+	LoadData();
+	SetParameter();
+	PreProcessData();		
+	
+	CreateInputLayer();
+	CreateIntermediateLayer();
+	CreateOutputLayer();
+	
+	BestResult();
 	
 	ProgramEnd();
 	return 0;
