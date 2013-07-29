@@ -7,19 +7,24 @@
 #include <algorithm>
 #include <ctime>
 #include <stdio.h>
+
 #include "Widths.h"
-#include "armadillo"
 #include "Posi.h"
 #include "MyMath.h"
+
+//#define ARMA_NO_DEBUG
+#include "armadillo"
 
 #define X_row 16839
 #define X_col 780
 #define Y_row 16839
 
+
+//Trainend >= Node
 #define Node 100
-#define Layer 2
+#define Layer 4
 #define Trainend 10839
-#define LambdaRange 1e-3
+#define LambdaRange 1e-6
 #define LambdaCount 5
 
 #define INF 999999999
@@ -28,6 +33,7 @@ using namespace std;
 using namespace arma;
 
 
+long edlin = 0;
 
 mat X;
 mat Y;
@@ -55,15 +61,18 @@ mat Result_test;
 clock_t start, finish;
 
 
-void ProgramInit(){
+bool ProgramInit(){
 	start = clock();
 	srand((unsigned)time(NULL));
+	if(Trainend < Node){
+		cerr << "Not satisfy: Trainend >= Node"<<endl;
+		return false;
+	}
+	return true;
 }
 
 
 void LoadData(){
-	clock_t a = clock();
-	
 	FILE *fp;
 	
 	fp = fopen("X.txt", "r");
@@ -78,15 +87,11 @@ void LoadData(){
 	for(long row=0; row<Y_row; row++)
 		fscanf(fp, "%lf", &Y(row,0));
 	fclose(fp);
-	
-	clock_t b = clock();
-	cout <<"### LD TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 void SetParameter(){
-	clock_t a = clock();
 	widths.node.clear();
 	for(int layer=0; layer<Layer; layer++){
 		widths.node.push_back(Node);
@@ -96,15 +101,11 @@ void SetParameter(){
 	BuildMethodFirstLayer = "exact";
 	batchSize = 50;
 	tol = 1e-9;	
-	
-	clock_t b = clock();
-	cout <<"### SP TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
 
 void PreProcessData(){
-	clock_t a = clock();
 	cout << "Building F for widths: [";
 	for(int i=0; i<widths.node.size(); i++){
 		cout<<widths.node.at(i)<<" ";
@@ -126,9 +127,6 @@ void PreProcessData(){
 	OF_row = trainend;
 	OF_col = widths.sum();
 	OF.zeros(OF_row, OF_col);
-	
-	clock_t b = clock();
-	cout <<"### PP TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 }
 
 
@@ -136,18 +134,18 @@ void PreProcessData(){
 
 void CreateInputLayer(){
 	clock_t a = clock();
+	
+	mat X_1;
+	X_1.ones(X_row, 1+X_col);
+	for(int i=0; i<X_row; i++){
+		for(int j=1; j<1+X_col; j++){
+			X_1(i, j) = X.at(i,j-1);
+		}
+	}
+	
 	mat W;
 	if(BuildMethodFirstLayer == "exact"){
-		
-		mat X_1;
-		X_1.ones(trainend, 1+X_col);
-		for(int i=0; i<trainend; i++){
-			for(int j=1; j<X_col+1; j++){
-				X_1(i,j) = X.at(i,j-1);
-			}
-		}
-		
-		W = orthonormalize(X_1, trainend, X_col+1, widths.node.front());
+		W = orthonormalize(X_1.submat(0,0,trainend-1,X_col), trainend, X_col+1, widths.node.front());
 	}
 	else if(BuildMethodFirstLayer == "approx"){
 		cerr << "Not implement yet!\n";
@@ -156,20 +154,13 @@ void CreateInputLayer(){
 		cerr << "Unknown BuildMethodFirstLayer" << endl;
 	}
 	
-	mat X_1;
-	X_1.ones(X_row, X_col+1);
-	for(int i=0; i<X_row; i++){
-		for(int j=1; j<X_col+1; j++){
-			X_1(i, j) = X.at(i,j-1);
-		}
-	}
-	
 	mat f = X_1 * W;
 	
 	long f_col = widths.node.front();
+	
 	for(int i=0; i<F_row; i++){
 		for(int j=0; j<f_col; j++){
-			F(i,j) = f.at(i,j);
+			F(i,j) = f(i,j);
 		}
 	}
 	
@@ -310,30 +301,31 @@ void CreateIntermediateLayer(){
 			
 			while(l<=numNewColumns){
 				mat f = F;
+				
+				clock_t x = clock();
 				for(int i=0; i<F_row; i++){
-					F(i,r-1+l-1) = f.at(i,M[ind].x) * f.at(i,beginLast+M[ind].y-1);
-				}
+					F(i,r-1+l-1) = f(i,M[ind].x) * f(i,beginLast+M[ind].y-1);
+				}//time consum
+				clock_t y = clock();
 				
 				for(int i=0; i<trainend; i++){
-					Cchosen(i, l-1) = F.at(i, r-1+l-1);
+					Cchosen(i, l-1) = F(i, r-1+l-1);
 				}
 				
 				mat subOF = OF.submat(0, 0, OF_row-1, r-1-1);				
 				mat subOF_2 = of*(subOF.t()*Cchosen.col(l-1));
 				
 				for(int i=0; i<trainend; i++){
-					OC(i,l-1) = Cchosen.at(i, l-1) - subOF_2.at(i, 0);
+					OC(i,l-1) = Cchosen(i, l-1) - subOF_2(i, 0);
 				}
-				
 				
 				if(l!=1){
 					mat	subOC = OC.submat(0, 0, trainend-1, l-2);
 					mat subOC_2 = subOC * (subOC.t()*OC.col(l-1)); 
 					for(int i=0; i<trainend; i++){
-						OC(i,l-1) = OC.at(i,l-1) - subOC_2.at(i,0);
+						OC(i,l-1) = OC(i,l-1) - subOC_2(i,0);
 					}
 				}
-				
 				
 				normOCl = INF_N;
 				mat tmp_u;
@@ -341,37 +333,36 @@ void CreateIntermediateLayer(){
 				mat tmp_v;
 				svd(tmp_u, tmp_s, tmp_v, OC.col(l-1));
 				for(int i=0; i<tmp_s.size(); i++){
-					if(normOCl<tmp_s.at(i))
-						normOCl = tmp_s.at(i);
+					if(normOCl<tmp_s(i))
+						normOCl = tmp_s(i);
 				}
-				
 				
 				if(normOCl > tol){			//Accept new vector if it's linearly independent from previous ones
 					for(int i=0; i<trainend; i++){
-						OC(i, l-1) = OC.at(i, l-1)/normOCl;
+						OC(i, l-1) = OC(i, l-1)/normOCl;
 					}
 					
 					double sumup = 0;
 					for(int i=0; i<trainend; i++){
-						sumup+=(F.at(i,r-1+l-1) * F.at(i,r-1+l-1));
+						sumup+=(F(i,r-1+l-1) * F(i,r-1+l-1));
 					}
 					double sq = sqrt(sumup/trainend);
 					
 					for(int i=0; i<F_row; i++){
-						F(i, r-1+l-1) = F.at(i, r-1+l-1)/sq;
+						F(i, r-1+l-1) = F(i, r-1+l-1)/sq;
 					}
 					l++;
 				}
-				
+
 				ind++;
-				if(ind > scores.size()){
+				
+				if(ind >= scores.size()){
 					if(l==1)
 						cerr << "No linearly-independent candidates were found in mini-batch"<<endl;
 					else
-						cout<<"Warning: Only " << l-1 <<"(out of mini-batch size "<<batchSize<<") linearly-independent candidate vectors were found and added."<<endl;
+						cerr<<"Warning: Only " << l-1 <<"(out of mini-batch size "<<batchSize<<") linearly-independent candidate vectors were found and added."<<endl;
 					break;	
 				}
-				
 			}
 			
 			if(normOCl > tol)
@@ -379,7 +370,7 @@ void CreateIntermediateLayer(){
 			
 			for(int i=0; i<OF_row; i++){
 				for(int j=r; j<=r-1+l; j++){
-					OF(i, j-1) = OC.at(i, j-r);
+					OF(i, j-1) = OC(i, j-r);
 				}
 			}
 			
@@ -414,7 +405,7 @@ void CreateOutputLayer(){
 	lambdaRange.zeros(1,LambdaCount);
 	lambdaRange(0,0) = LambdaRange;
 	for(int i=1; i<LambdaCount; i++){
-		lambdaRange(0,i) = lambdaRange.at(0,i-1)*10;
+		lambdaRange(0,i) = lambdaRange(0,i-1)*10;
 	}
 	
 	
@@ -452,7 +443,7 @@ void CreateOutputLayer(){
 		long sz = cumsum_widths.at(i);
 		long lambdaCounter = 0;
 		for(int j=0; j<LambdaCount; j++){
-			double lambda = lambdaRange.at(0,j);
+			double lambda = lambdaRange(0,j);
 			
 			cout << "Training depth "<<szCounter+2<<", lambda "<<lambda<<endl;
 			
@@ -463,7 +454,7 @@ void CreateOutputLayer(){
 				
 				preds = F.submat(0, 0, F_row-1, sz-1)*w;
 				for(int a=0; a<X_row; a++){
-					if(preds.at(a,0)>0)
+					if(preds(a,0)>0)
 						preds(a,0) = 1;
 					else
 						preds(a,0) = -1;
@@ -478,7 +469,7 @@ void CreateOutputLayer(){
 						minY = *it;
 				}
 				for(int i=0; i<Y_row; i++){
-					Y(i,0) = Y.at(i,0) - minY + 1;
+					Y(i,0) = Y(i,0) - minY + 1;
 				}
 				
 				mat subF = F.submat(0, 0, trainend-1, sz-1);
@@ -491,8 +482,8 @@ void CreateOutputLayer(){
 					long Max = INF_N;
 					int pre;
 					for(int b=0; b<classLabels.size();b++){
-						if(Max<temp.at(a,b)){
-							Max = temp.at(a,b);
+						if(Max<temp(a,b)){
+							Max = temp(a,b);
 							pre = b;
 						}
 					}
@@ -500,20 +491,20 @@ void CreateOutputLayer(){
 				}
 				
 				for(int a=0; a<F_row-1; a++){
-					preds(a,0) = preds.at(a,0)+minY-1;
+					preds(a,0) = preds(a,0)+minY-1;
 				}
 			}
 			
 			long error = 0;
 			for(int a=0; a<trainend; a++){
-				if(preds(a,0)!=Y.at(a,0))
+				if(preds(a,0)!=Y(a,0))
 					error++;
 			}
 			Result_train(szCounter, lambdaCounter) = error/double(trainend);
 			
 			error = 0;
 			for(int a=trainend; a<Y_row; a++){
-				if(preds(a,0)!=Y.at(a,0))
+				if(preds(a,0)!=Y(a,0))
 					error++;
 			}
 			Result_test(szCounter, lambdaCounter) = error/double(Y_row-trainend);
@@ -538,7 +529,7 @@ void BestResult(){
 	
 	for(int i=0; i<widths.node.size(); i++){
 		for(int j=0; j<LambdaCount; j++){
-			if(bestTestError > Result_test.at(i,j)){
+			if(bestTestError > Result_test(i,j)){
 				
 				bestTestError = Result_test(i,j);
 				best_i = i;
@@ -546,6 +537,11 @@ void BestResult(){
 			}
 		}
 	}
+	
+	//------------------------
+	clock_t c = clock();
+	cout <<"### BR(1) TIME = "<<c-a<<endl;
+	//------------------------
 	
 	Result_train.zeros(widths.node.size(),LambdaCount);
 	
@@ -572,7 +568,8 @@ void ProgramEnd(){
 
 int main(){
 
-	ProgramInit();
+	if(!ProgramInit())
+		return 1;
 	
 	LoadData();
 	SetParameter();

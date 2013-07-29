@@ -14,33 +14,23 @@ bool cmp(const Posi& a, const Posi& b){
 }
 
 
+
 Mat<int> randperm(long m){	
 	Mat<int> w;
 	w.zeros(1,m);
-	bool *visit = new bool[m];
-	for(int i=0; i<m; i++)
-		visit[i] = false;
-	
-	int r;
-	for(int i=0; i<m; i++){
-		r = rand()%m;		
-		
-		while(visit[r]==true){
-			r++;
-			if(r>=m)
-				r=0;
-		}
-		visit[r] = true;
-		w(0,i) = r;
-		
-	}	
-	delete []visit;
 
-/*	--for testing--
-	for(int i=0; i<250; i++){
-		w(0,i) = i;
+	for(int i=0; i<m; i++){
+		w.at(0,i) = i;
 	}
-*/
+	int r;
+	int tmp;
+	for(int i=0; i<m; i++){
+		r = rand()%m;
+		tmp = w.at(0,i);
+		w.at(0,i) = w.at(0,r);
+		w.at(0,r) = tmp;
+	}	
+
 	return w;
 }
 
@@ -155,6 +145,7 @@ mat MC_SGD(mat X, long M, long N, mat Y, int ClassLabels, double lam){
 
 
 mat orthonormalize(mat G, long row, long col, int width){
+	clock_t a = clock();
 	
 	mat U;
 	vec D;
@@ -175,7 +166,6 @@ mat orthonormalize(mat G, long row, long col, int width){
 	if(Min > needIndex.size())
 		Min = needIndex.size();
 	
-	
 	long w_row = col;
 	mat new_w;
 	new_w.zeros(w_row, Min);
@@ -185,8 +175,7 @@ mat orthonormalize(mat G, long row, long col, int width){
 			new_w(j, i) = W.at(j, needIndex.at(i));
 		}
 	}
-	
-	
+		
 	mat B = G*new_w;
 	mat target_w;
 	target_w.zeros(w_row, Min);
@@ -204,6 +193,10 @@ mat orthonormalize(mat G, long row, long col, int width){
 		}
 		
 	}
+	
+	clock_t b = clock();
+	cout <<"### OR TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
+	
 	return target_w;
 }
 
