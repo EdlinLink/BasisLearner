@@ -22,7 +22,7 @@
 
 //Trainend >= Node
 #define Node 100
-#define Layer 4
+#define Layer 2
 #define Trainend 10839
 #define LambdaRange 1e-6
 #define LambdaCount 5
@@ -231,7 +231,6 @@ void CreateIntermediateLayer(){
 			scores.zeros(widths.node.front(), widths.node.at(t-1-1));
 			
 			mat OV = orth(V, V_row, V_col);
-			
 			for(int i=0; i<widths.node.front(); i++){ //Compute scores
 				mat Ci;
 				long Ci_col = widths.node.at(t-1-1);
@@ -300,6 +299,7 @@ void CreateIntermediateLayer(){
 			double normOCl;
 			
 			while(l<=numNewColumns){
+				
 				mat f = F;
 				
 				clock_t x = clock();
@@ -327,15 +327,11 @@ void CreateIntermediateLayer(){
 					}
 				}
 				
-				normOCl = INF_N;
-				mat tmp_u;
-				vec tmp_s;
-				mat tmp_v;
-				svd(tmp_u, tmp_s, tmp_v, OC.col(l-1));
-				for(int i=0; i<tmp_s.size(); i++){
-					if(normOCl<tmp_s(i))
-						normOCl = tmp_s(i);
+				double sumOC = 0;
+				for(int i=0; i<trainend; i++){
+					sumOC+=(OC(i,l-1) * OC(i,l-1));
 				}
+				normOCl = sqrt(sumOC);
 				
 				if(normOCl > tol){			//Accept new vector if it's linearly independent from previous ones
 					for(int i=0; i<trainend; i++){
