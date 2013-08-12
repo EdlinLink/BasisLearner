@@ -12,7 +12,7 @@
 #include "Posi.h"
 #include "MyMath.h"
 
-//#define ARMA_NO_DEBUG
+#define ARMA_NO_DEBUG
 #include "armadillo"
 
 #define X_row 16839
@@ -21,8 +21,8 @@
 
 
 //Trainend >= Node
-#define Node 100
-#define Layer 2
+#define Node 50
+#define Layer 7
 #define Trainend 10839
 #define LambdaRange 1e-6
 #define LambdaCount 5
@@ -35,14 +35,14 @@ using namespace arma;
 
 long edlin = 0;
 
-mat X;
+mat X_1;
 mat Y;
 
 
 Widths widths;
 long trainend;
 string BuildMethodFirstLayer;
-int batchSize;
+int batchSize = Node;
 double tol;
 
 
@@ -75,17 +75,27 @@ bool ProgramInit(){
 void LoadData(){
 	FILE *fp;
 	
+	Mat<int> ran = randperm(X_row);
+	long select_row;
+	
 	fp = fopen("X.txt", "r");
-	X.zeros(X_row, X_col);
-	for(long row=0; row<X_row; row++)
-		for(long col=0; col<X_col; col++)
-			fscanf(fp, "%lf", &X(row,col));
+	X_1.ones(X_row, 1+X_col);
+	for(long count=0; count<X_row; count++){
+		select_row = ran(0, count);
+		select_row = count;
+		for(long col=1; col<X_col+1; col++){
+			fscanf(fp, "%lf", &X_1(select_row,col));
+		}
+	}
 	fclose(fp);
 
 	fp = fopen("YY.txt", "r");
 	Y.zeros(Y_row, 1);
-	for(long row=0; row<Y_row; row++)
-		fscanf(fp, "%lf", &Y(row,0));
+	for(long count=0; count<Y_row; count++){
+		select_row = ran(0, count);
+		select_row = count;
+		fscanf(fp, "%lf", &Y(select_row,0));
+	}
 	fclose(fp);
 }
 
@@ -99,7 +109,7 @@ void SetParameter(){
 	
 	trainend = Trainend;
 	BuildMethodFirstLayer = "exact";
-	batchSize = 50;
+	//batchSize = 100;
 	tol = 1e-9;	
 }
 
@@ -134,14 +144,14 @@ void PreProcessData(){
 
 void CreateInputLayer(){
 	clock_t a = clock();
-	
+	/*
 	mat X_1;
 	X_1.ones(X_row, 1+X_col);
 	for(int i=0; i<X_row; i++){
 		for(int j=1; j<1+X_col; j++){
 			X_1(i, j) = X.at(i,j-1);
 		}
-	}
+	}*/
 	
 	mat W;
 	if(BuildMethodFirstLayer == "exact"){
@@ -305,7 +315,7 @@ void CreateIntermediateLayer(){
 				clock_t x = clock();
 				for(int i=0; i<F_row; i++){
 					F(i,r-1+l-1) = f(i,M[ind].x) * f(i,beginLast+M[ind].y-1);
-				}//time consum
+				}
 				clock_t y = clock();
 				
 				for(int i=0; i<trainend; i++){
@@ -423,7 +433,6 @@ void CreateOutputLayer(){
 	else
 		lossType = "hinge";
 	
-	
 	int szCounter = 0;
 	vector<int> cumsum_widths;
 	cumsum_widths.clear();
@@ -442,7 +451,7 @@ void CreateOutputLayer(){
 			double lambda = lambdaRange(0,j);
 			
 			cout << "Training depth "<<szCounter+2<<", lambda "<<lambda<<endl;
-			
+
 			if(lossType == "hinge"){
 				mat subF = F.submat(0, 0, trainend-1, sz-1);
 				mat subY = Y.submat(0, 0, trainend-1, 0);
@@ -458,12 +467,13 @@ void CreateOutputLayer(){
 			}
 			else{
 				long minY = INF;
-				
+			
 				set<int>::iterator it;
 				for(	it=classLabels.begin(); it!=classLabels.end(); it++){
 					if(minY>*it)
 						minY = *it;
 				}
+				
 				for(int i=0; i<Y_row; i++){
 					Y(i,0) = Y(i,0) - minY + 1;
 				}
@@ -472,6 +482,7 @@ void CreateOutputLayer(){
 				mat subY = Y.submat(0, 0, trainend-1, 0);
 				
 				mat w = MC_SGD(subF, trainend, sz, subY, classLabels.size(), lambda);
+
 				subF = F.submat(0, 0, F_row-1, sz-1);
 				mat temp = subF*w;
 				for(int a=0; a<F_row-1; a++){
@@ -490,7 +501,7 @@ void CreateOutputLayer(){
 					preds(a,0) = preds(a,0)+minY-1;
 				}
 			}
-			
+		
 			long error = 0;
 			for(int a=0; a<trainend; a++){
 				if(preds(a,0)!=Y(a,0))
@@ -519,7 +530,6 @@ void CreateOutputLayer(){
 
 
 void BestResult(){
-	clock_t a = clock();
 	double bestTestError = 1.00;
 	long best_i,best_j;
 	
@@ -533,12 +543,6 @@ void BestResult(){
 			}
 		}
 	}
-	
-	//------------------------
-	clock_t c = clock();
-	cout <<"### BR(1) TIME = "<<c-a<<endl;
-	//------------------------
-	
 	Result_train.zeros(widths.node.size(),LambdaCount);
 	
 	cout << "Best Test Error Result: " <<bestTestError*100<<"%"<<endl;
@@ -546,10 +550,8 @@ void BestResult(){
 	for(int i=0; i<=best_i; i++){
 		cout << widths.node.at(i) <<" ";
 	}
-	cout<<"]\n - lambda "<<lambdaRange(0,best_j)<<"(no. "<<best_j+1<<" in lambdaRange)"<<endl;
 	
-	clock_t b = clock();
-	cout <<"### BR TIME = "<<b-a<<endl;
+	cout<<"]\n - lambda "<<lambdaRange(0,best_j)<<"(no. "<<best_j+1<<" in lambdaRange)"<<endl;
 }
 
 

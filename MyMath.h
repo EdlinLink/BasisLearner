@@ -91,10 +91,11 @@ mat SGD_hinge(mat X, long M, long N, mat Y, double lam){
 
 
 mat MC_SGD(mat X, long M, long N, mat Y, int ClassLabels, double lam){
+	clock_t a = clock();
 	X = X.t();
 	long k = ClassLabels;
 	
-	int num_epochs = 100;
+	int num_epochs = 20;
 	long m = M;
 	long n = N;
 	
@@ -113,6 +114,7 @@ mat MC_SGD(mat X, long M, long N, mat Y, int ClassLabels, double lam){
 			double val=-999999;
 			long j;
 
+
 			for(int a=1; a<=k; a++){
 				int tmp = 0;
 				if(a!=Y.at(ind))
@@ -125,18 +127,28 @@ mat MC_SGD(mat X, long M, long N, mat Y, int ClassLabels, double lam){
 				}
 			}
 			
+			//cout<<"#1\n";
 			w = (1-1/t)*w;
 			if(val>0){
 				for(int a=0; a<n; a++){
-					w(Y(ind)-1,a) = w.at(Y(ind)-1,a) + X.at(a,ind)/(lam*t);
+				//	cout<<"#2 "<<Y(ind)<<endl;
+				//	cout<<"#3 "<<X(a,ind)/(lam*t)<<endl;
+				//	cout<<"#4 "<<w(Y(ind)-1,a)<<endl;
+				//	cout<<"#5\n";
+					w(Y(ind)-1,a) = w(Y(ind)-1,a) + X(a,ind)/(lam*t);
+				//	cout<<"#6\n";
 				}
 				for(int a=0; a<n; a++){
 					w(j-1,a) = w.at(j-1,a) - X.at(a,ind)/(lam*t);
 				}
+				//cout<<"#7\n";
 			}
-			t++;
+			t+=1;
+			//cout <<"@@@@@4\n";
 		}
 	}
+	clock_t b = clock();
+//	cout <<"### MSGD TIME = "<<(b-a)/CLOCKS_PER_SEC<<endl;
 
 	return w.t();
 }
