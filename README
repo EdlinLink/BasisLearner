@@ -1,20 +1,23 @@
 Implement the algorithm in paper "A Provably Efficient Algorithm for Training Deep Networks" in C/C++ according to the given Matlab code.
+
 The code is written in C/C++, but we need a extra library to handle the matrix computation. It is called Armadillo, a C++ linear algebra library. The link is: http://arma.sourceforge.net/  
+
 After installing the library according to the README.txt in the Armadillo package, we can run the program. You can easily run the command:
-		bash run.bash
+	bash run.bash
 or you can run the following command:
-		g++ main –o out -02 –larmadillo
-		./out
+	g++ main –o out -02 –larmadillo
+	./out
 They do the same things.
+
 
 The main file of the algorithm is implemented in "main.cpp" and "MyMath.h". "Posi.h" and "Widths.h" are supported files. "X.txt" stores the features of the data and "Y.txt" stores the target value. Though both train data and test data store in the same file, we can use the parameter in the code to tell the program which part is training and which part is testing. 
 
 The files and description are list as follow:
-		"main.cpp"	The main algorithm implementation.
-		"MyMath.h"	Some algorithms used in the main.cpp.
-		"Posi.h"	A simple auxiliary class.
-		"Widths.h"	A simple auxiliary class.
-		"run.bash"	To run the program easily.
-		"X.txt"	Training and testing data - features. (The size of the data are define in the code as X_row, X_col, Y_row, Trainend)
-		"Y.txt"	Training and testing data – target value. 
+	"main.cpp"	The main algorithm implementation.
+	"MyMath.h"	Some algorithms used in the main.cpp.
+	"Posi.h"	A simple auxiliary class.
+	"Widths.h"	A simple auxiliary class.
+	"run.bash"	To run the program easily.
+	"X.txt"	Training and testing data - features. (The size of the data are define in the code as X_row, X_col, Y_row, Trainend)
+	"Y.txt"	Training and testing data – target value. 
 
